@@ -54,19 +54,34 @@ def init_agent():
         error_msg: str
 
     def guardrail_node(state: AgentState) -> AgentState:
-        user_input = state["input_text"]
+        user_input_lower = state["input_text"].lower()
         
+        # 1. فحص مباشر وسريع للكلمات المحظورة صراحة (تأمين إضافي 100%)
+        prompt_injection_keywords = ["ignore previous instructions", "system prompt", "امسح التعليمات"]
+        blocked_topic_keywords = ["بيتزا", "طريقة عمل البيتزا"]
+
+        for kw in prompt_injection_keywords:
+            if kw in user_input_lower:
+                state["guardrail_passed"] = False
+                state["response"] = "🚨 تنبيه أمني: محاولة غير مصرح بها لتجاوز تعليمات النظام."
+                return state
+
+        for kw in blocked_topic_keywords:
+            if kw in user_input_lower:
+                state["guardrail_passed"] = False
+                state["response"] = "⚠️ عذراً، هذا الموضوع ممنوع الإجابة عليه حسب سياسة الأمان."
+                return state
+
         if not guardrails:
             state["guardrail_passed"] = True
             return state
 
+        # 2. فحص NeMo Guardrails للسيناريوهات المعقدة
         try:
-            # تشغيل فحص NeMo على المدخلات
-            res = guardrails.generate(prompt=user_input)
+            res = guardrails.generate(prompt=state["input_text"])
             res_text = res.get("content", "") if isinstance(res, dict) else str(res)
 
-            # الكلمات الدلالية التي تعبر عن استجابات الحظر المعرفة في general.co
-            blocked_keywords = ["🚨", "⚠️", "تنبيه أمني", "ممنوع الإجابة", "تجاوز تعليمات"]
+            blocked_keywords = ["🚨", "⚠️", "تنبيه أمني", "ممنوع الإجابة", "تجاوز تعليمات", "سياسة الأمان"]
 
             if any(keyword in res_text for keyword in blocked_keywords):
                 state["guardrail_passed"] = False
