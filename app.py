@@ -1,7 +1,5 @@
 import os
 import sys
-import asyncio
-import nest_asyncio
 import streamlit as st
 from typing import TypedDict
 from langchain_core.tools import tool
@@ -10,10 +8,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from nemoguardrails import RailsConfig, LLMRails
 from langgraph.graph import StateGraph, END
 
-# حل مشكلة Event Loop داخل Streamlit
-nest_asyncio.apply()
-
-# 1. إعداد المفاتيح في بيئة النظام (مهم لـ NeMo Guardrails و Groq)
+# 1. إعداد المفاتيح في بيئة النظام
 if "GROQ_API_KEY" in st.secrets:
     os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
     os.environ["OPENAI_API_KEY"] = st.secrets["GROQ_API_KEY"]  # مطلوب لـ NeMo OpenAI Engine
@@ -22,7 +17,7 @@ st.set_page_config(page_title="Secure AI Agent Platform", page_icon="🤖", layo
 st.title("Secure AI Agent Platform From YASOR LABS")
 
 # ---------------------------------------------------------
-# 2. تعريف الأدوات
+# 2. تعريف الأدوات (Tools)
 # ---------------------------------------------------------
 @tool
 def multiply_numbers(a: float, b: float) -> float:
@@ -34,19 +29,8 @@ def calculate_rsi(prices: str) -> str:
     """تستخدم لحساب مؤشر القوة النسبية RSI لأسعار السهم."""
     return "مؤشر RSI الحالي هو 28.5 (منطقة تشبع بيعي - فرصة شراء)."
 
-def run_async(coro):
-    """تضمن وجود Event Loop نشط وتنفذ الكود اللا تزاكني بأمان."""
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_closed():
-            raise RuntimeError
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    
-    return loop.run_until_complete(coro)
 # ---------------------------------------------------------
-# 3. إعداد الـ Agent والـ Guardrails
+# 3. إعداد الـ Agent والـ Guardrails (Synchronous)
 # ---------------------------------------------------------
 @st.cache_resource
 def init_agent():
@@ -63,14 +47,15 @@ def init_agent():
         guardrails = LLMRails(config)
     except Exception as e:
         st.error(f"❌ فشل تحميل NeMo Guardrails: {str(e)}")
-  
+
     class AgentState(TypedDict):
         input_text: str
         guardrail_passed: bool
         response: str
         error_msg: str
 
-    async def guardrail_node(state: AgentState) -> AgentState:
+    # دالة الفحص متزامنة (Sync)
+    def guardrail_node(state: AgentState) -> AgentState:
         user_input = state["input_text"]
         
         if not guardrails:
@@ -78,7 +63,8 @@ def init_agent():
             return state
 
         try:
-            res = await guardrails.generate_async(prompt=user_input)
+            # استخدام generate Sync بدلاً من generate_async
+            res = guardrails.generate(prompt=user_input)
             res_text = res.get("content", "") if isinstance(res, dict) else str(res)
 
             if any(keyword in res_text for keyword in ["🚨", "⚠️", "تنبيه أمني", "عذراً"]):
@@ -94,11 +80,11 @@ def init_agent():
             
         return state
 
-    async def llm_agent_node(state: AgentState) -> AgentState:
+    # دالة تنفيذ النموذج متزامنة (Sync)
+    def llm_agent_node(state: AgentState) -> AgentState:
         if not state["guardrail_passed"]:
             return state
         
-        # توحيد التعليمات لتكون متوافقة مع قواعد NeMo
         messages = [
             SystemMessage(content="""أنت مساعد ذكي مخصص فقط للحسابات الرياضية والتحليل الفني للأسهم.
 - إذا كان سؤال المستخدم يتطلب أداة (مثل ضرب الأرقام أو حساب RSI)، استدعِ الأداة المناسبة فوراً.
@@ -106,7 +92,8 @@ def init_agent():
             HumanMessage(content=state["input_text"])
         ]
         
-        ai_msg = await llm_with_tools.ainvoke(messages)
+        # استخدام invoke Sync بدلاً من ainvoke
+        ai_msg = llm_with_tools.invoke(messages)
         
         if ai_msg.tool_calls:
             tool_call = ai_msg.tool_calls[0]
@@ -115,7 +102,6 @@ def init_agent():
             
             if tool_name == "multiply_numbers":
                 result = multiply_numbers.invoke(tool_args)
-                
                 state["response"] = f"النتيجة الحسابية الدقيقة: {result}"
             elif tool_name == "calculate_rsi":
                 result = calculate_rsi.invoke(tool_args)
@@ -125,7 +111,7 @@ def init_agent():
         else:
             state["response"] = ai_msg.content
 
-        return state # تم تصحيح الإزاحة هنا
+        return state
 
     workflow = StateGraph(AgentState)
     workflow.add_node("guardrail_check", guardrail_node)
@@ -138,7 +124,9 @@ def init_agent():
 
 app_graph = init_agent()
 
- 
+# ---------------------------------------------------------
+# 4. واجهة المستخدم
+# ---------------------------------------------------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -146,7 +134,6 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# تحديث أمثلة الإدخال لتتناسب مع تخصص البوت
 user_input = st.chat_input("اسأل المساعد (مثال: احسب 15 * 40 أو احسب RSI للأسعار)...")
 
 if user_input:
@@ -163,8 +150,8 @@ if user_input:
                 "error_msg": ""
             }
             
-            # ✅ التشغيل الآمن باستخدام الدالة المخصصة
-            output = run_async(app_graph.ainvoke(initial_state))
+            # تنفيذ مباشر وسلس بدون أي asyncio أو مشاكل مع AnyIO
+            output = app_graph.invoke(initial_state)
             
             if output["guardrail_passed"]:
                 st.caption("🛡️ NeMo Guardrails: تم اجتياز الفحص الأمني.")
