@@ -13,22 +13,22 @@ if "GROQ_API_KEY" in st.secrets:
     os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
     os.environ["OPENAI_API_KEY"] = st.secrets["GROQ_API_KEY"]
 
-st.set_page_config(page_title="Secure AI Agent Platform", page_icon="🤖", layout="centered")
+st.set_page_config(page_title="Secure AI Agent Platform From YASOR LABS", , layout="centered")
 
-st.title("Secure AI Agent Platform")
+st.title("Secure AI Agent Platform From YASOR LABS")
 st.caption("Powered by LangGraph, Groq (Llama 3.3), NeMo Guardrails & Streamlit")
 
- 
+   
 @st.cache_resource
 def init_agent():
     @tool
     def multiply_numbers(a: float, b: float) -> float:
-        """تستخدم لحساب حاصل ضرب رقمين بدقة 100%."""
+         
         return a * b
 
     @tool
     def calculate_rsi(prices: str) -> str:
-        """تستخدم لحساب مؤشر القوة النسبية RSI لأسعار السهم."""
+        " 
         return "مؤشر RSI الحالي هو 28.5 (منطقة تشبع بيعي - فرصة شراء)."
 
     tools = [multiply_numbers, calculate_rsi]
@@ -38,7 +38,7 @@ def init_agent():
     guardrails = LLMRails(config)
 
     # Groq LLM Setup
-    llm = ChatGroq(model_name="llama-3.3-70b-versatile", temperature=0)
+    llm = ChatGroq(model_name="llama-3.3-70b-versatile", temperature=0.3)
     llm_with_tools = llm.bind_tools(tools)
 
     class AgentState(TypedDict):
@@ -59,13 +59,16 @@ def init_agent():
     async def llm_agent_node(state: AgentState) -> AgentState:
         if not state["guardrail_passed"]:
             return state
-        
+        ا
         messages = [
-            SystemMessage(content="أنت مساعد ذكي يستعين بالأدوات المتاحة لحساب الأرقام والتحليل الفني."),
+            SystemMessage(content="""أنت مساعد ذكي ومفيد ومتعدد المهام.
+- إذا كان سؤال المستخدم يتطلب أداة مجهزة (مثل ضرب الأرقام أو حساب مؤشر RSI)، قم باستدعاء الأداة المناسبة.
+- إذا كان السؤال عاماً أو استفساراً لا يحتاج إلى أدوات، أجب عليه مباشرة بدقة ووضوح من معرفتك العامة بدون استدعاء أي أداة."""),
             HumanMessage(content=state["input_text"])
         ]
         
         ai_msg = await llm_with_tools.ainvoke(messages)
+        
         
         if ai_msg.tool_calls:
             tool_call = ai_msg.tool_calls[0]
@@ -79,6 +82,7 @@ def init_agent():
                 result = calculate_rsi.invoke(tool_args)
                 state["response"] = f"نتيجة التحليل: {result}"
         else:
+             
             state["response"] = ai_msg.content
 
         return state
@@ -94,27 +98,33 @@ def init_agent():
 
 app_graph = init_agent()
 
-# 3. إدارة جلسة الـ Chat
+  
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
-
-user_input = st.chat_input("اسأل المساعد (مثال: احسب 15 * 40 أو ما هو RSI لسهم CIB)...")
-
+ 
+user_input = st.chat_input("What is your question")
 if user_input:
+    
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.markdown(user_input)
+
+       
     with st.chat_message("assistant"):
-        with st.spinner("جاري فحص الأمان والتحليلgit push -u origin main"):
+        with st.spinner("جاري التفكير والأمان..."):
             initial_state = {"input_text": user_input, "guardrail_passed": False, "response": ""}
             
-            # تشغيل الـ Async Graph داخل Streamlit
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+         
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
             output = loop.run_until_complete(app_graph.ainvoke(initial_state))
             bot_reply = output["response"]
 
