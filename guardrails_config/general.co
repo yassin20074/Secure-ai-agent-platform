@@ -11,18 +11,19 @@ define flow check prompt injection
 define bot express security alert
   "🚨 تنبيه أمني: محاولة غير مصرح بها لتجاوز تعليمات النظام."
 
- 
-define user express off topic
-  "من هو رئيس"
-  "اكتب لي شعر"
-  "ما هي عاصمة"
-  "طريقة عمل البيتزا"
-  "ولد كود اختراق"
 
-define flow check off topic
-  user express off topic
-  bot express off topic message
+define user express blocked topic
+  "طريقة عمل البيتزا"
+  "طريقة عمل"
+  "بيتزا"
+  "كيف اسوي بيتزا"
+  "عمل البيتزا"
+  " ولد كود اختراق"
+
+define flow check blocked topic
+  user express blocked topic
+  bot express blocked message
   stop
 
-define bot express off topic message
-  "⚠️ عذراً، أنا نظام مخصص فقط للحسابات الرياضية والتحليل المالي ولا أجيب عن الأسئلة العامة."
+define bot express blocked message
+  "⚠️ عذراً، هذا الموضوع ممنوع الإجابة عليه حسب سياسة الأمان."
