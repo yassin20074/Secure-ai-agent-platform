@@ -13,24 +13,25 @@ if "GROQ_API_KEY" in st.secrets:
     os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
     os.environ["OPENAI_API_KEY"] = st.secrets["GROQ_API_KEY"]
 
-st.set_page_config(page_title="Secure AI Agent Platform From YASOR LABS",  layout="centered")
+st.set_page_config(page_title="Secure AI Agent Platform", page_icon="🤖", layout="centered")
 
 st.title("Secure AI Agent Platform From YASOR LABS")
 st.caption("Powered by LangGraph, Groq (Llama 3.3), NeMo Guardrails & Streamlit")
 
-   
+ 
+@tool
+def multiply_numbers(a: float, b: float) -> float:
+    """تستخدم لحساب حاصل ضرب رقمين بدقة 100%."""
+    return a * b
+
+@tool
+def calculate_rsi(prices: str) -> str:
+    """تستخدم لحساب مؤشر القوة النسبية RSI لأسعار السهم."""
+    return "مؤشر RSI الحالي هو 28.5 (منطقة تشبع بيعي - فرصة شراء)."
+
+ 
 @st.cache_resource
 def init_agent():
-    @tool
-    def multiply_numbers(a: float, b: float) -> float:
-         
-        return a * b
-
-    @tool
-    def calculate_rsi(prices: str) -> str:
-        
-        return "مؤشر RSI الحالي هو 28.5 (منطقة تشبع بيعي - فرصة شراء)."
-
     tools = [multiply_numbers, calculate_rsi]
 
     # NeMo Guardrails Setup
@@ -59,7 +60,7 @@ def init_agent():
     async def llm_agent_node(state: AgentState) -> AgentState:
         if not state["guardrail_passed"]:
             return state
-        ا
+        
         messages = [
             SystemMessage(content="""أنت مساعد ذكي ومفيد ومتعدد المهام.
 - إذا كان سؤال المستخدم يتطلب أداة مجهزة (مثل ضرب الأرقام أو حساب مؤشر RSI)، قم باستدعاء الأداة المناسبة.
@@ -68,7 +69,6 @@ def init_agent():
         ]
         
         ai_msg = await llm_with_tools.ainvoke(messages)
-        
         
         if ai_msg.tool_calls:
             tool_call = ai_msg.tool_calls[0]
@@ -82,7 +82,6 @@ def init_agent():
                 result = calculate_rsi.invoke(tool_args)
                 state["response"] = f"نتيجة التحليل: {result}"
         else:
-             
             state["response"] = ai_msg.content
 
         return state
@@ -98,27 +97,25 @@ def init_agent():
 
 app_graph = init_agent()
 
-  
+ 
 if "messages" not in st.session_state:
+ 
     st.session_state.messages = []
-
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
- 
-user_input = st.chat_input("What is your question")
+
+user_input = st.chat_input("What is your question?")
+
 if user_input:
-    
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.markdown(user_input)
 
-       
     with st.chat_message("assistant"):
         with st.spinner("جاري التفكير والأمان..."):
             initial_state = {"input_text": user_input, "guardrail_passed": False, "response": ""}
             
-         
             try:
                 loop = asyncio.get_running_loop()
             except RuntimeError:
@@ -129,4 +126,4 @@ if user_input:
             bot_reply = output["response"]
 
             st.markdown(bot_reply)
-            st.session_state.messages.append({"role": "assistant", "content": bot_reply})
+            st.session_state.messages.append({"role": "assistant", "content": bot_reply})     
