@@ -103,7 +103,7 @@ def init_agent():
             state["response"] = ai_msg.content
 
         return state
-     workflow = StateGraph(AgentState)
+    workflow = StateGraph(AgentState)
     workflow.add_node("guardrail_check", guardrail_node)
     workflow.add_node("agent_execution", llm_agent_node)
     workflow.set_entry_point("guardrail_check")
