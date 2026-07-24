@@ -11,13 +11,13 @@ from langgraph.graph import StateGraph, END
 # 1. إعداد المفاتيح في بيئة النظام
 if "GROQ_API_KEY" in st.secrets:
     os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
-    os.environ["OPENAI_API_KEY"] = st.secrets["GROQ_API_KEY"]  # مطلوب لـ NeMo OpenAI Engine
+    os.environ["OPENAI_API_KEY"] = st.secrets["GROQ_API_KEY"]
 
 st.set_page_config(page_title="Secure AI Agent Platform", page_icon="🤖", layout="centered")
 st.title("Secure AI Agent Platform From YASOR LABS")
 
 # ---------------------------------------------------------
-# 2. تعريف الأدوات (Tools)
+# 2. تعريف الأدوات
 # ---------------------------------------------------------
 @tool
 def multiply_numbers(a: float, b: float) -> float:
@@ -30,13 +30,12 @@ def calculate_rsi(prices: str) -> str:
     return "مؤشر RSI الحالي هو 28.5 (منطقة تشبع بيعي - فرصة شراء)."
 
 # ---------------------------------------------------------
-# 3. إعداد الـ Agent والـ Guardrails (Synchronous)
+# 3. إعداد الـ Agent والـ Guardrails
 # ---------------------------------------------------------
 @st.cache_resource
 def init_agent():
     tools = [multiply_numbers, calculate_rsi]
 
-    # إعداد LLM الخاص بـ Groq
     llm = ChatGroq(model_name="llama-3.3-70b-versatile", temperature=0.3)
     llm_with_tools = llm.bind_tools(tools)
 
@@ -54,7 +53,6 @@ def init_agent():
         response: str
         error_msg: str
 
-    # دالة الفحص متزامنة (Sync)
     def guardrail_node(state: AgentState) -> AgentState:
         user_input = state["input_text"]
         
@@ -63,11 +61,14 @@ def init_agent():
             return state
 
         try:
-            # استخدام generate Sync بدلاً من generate_async
+            # تشغيل فحص NeMo على المدخلات
             res = guardrails.generate(prompt=user_input)
             res_text = res.get("content", "") if isinstance(res, dict) else str(res)
 
-            if any(keyword in res_text for keyword in ["🚨", "⚠️", "تنبيه أمني", "عذراً"]):
+            # الكلمات الدلالية التي تعبر عن استجابات الحظر المعرفة في general.co
+            blocked_keywords = ["🚨", "⚠️", "تنبيه أمني", "ممنوع الإجابة", "تجاوز تعليمات"]
+
+            if any(keyword in res_text for keyword in blocked_keywords):
                 state["guardrail_passed"] = False
                 state["response"] = res_text
             else:
@@ -79,18 +80,18 @@ def init_agent():
             state["error_msg"] = str(e)
             
         return state
+
     def llm_agent_node(state: AgentState) -> AgentState:
         if not state["guardrail_passed"]:
             return state
         
-        # System Prompt مرن للأسئلة العامة وذكي لاستخدام الأدوات
+        # System Prompt يسمح بالرد العام واستخدام الأدوات عند الحاجة
         messages = [
             SystemMessage(content="""أنت مساعد ذكي ومفيد ومتعدد المهام.
 
 القواعد:
-1. إذا كان سؤال المستخدم يتطلب حسابات رياضية (مثل ضرب أرقام) أو تحليل أسهم (مثل حساب RSI)، استخدم الأداة المخصصة المتاحة فوراً.
-2. إذا كان السؤال عاماً (ثقافي، رياضي، تاريخي، معلومات عامة... إلخ)، أجب عليه مباشرة بدقة ووضوح من معرفتك العامة بدون استدعاء أي أداة.
-3. يمنع استدعاء أدوات الحساب ببيانات افتراضية إذا لم يطلب المستخدم حساباً صريحاً."""),
+1. إذا كان سؤال المستخدم يتطلب حسابات رياضية أو تحليل أسهم، استخدم الأداة المناسبة المتاحة فوراً.
+2. إذا كان السؤال عاماً (معلومات عامة، رياضة، تاريخ...)، أجب عليه مباشرة بدقة ووضوح بدون استدعاء أدوات."""),
             HumanMessage(content=state["input_text"])
         ]
         
@@ -113,8 +114,7 @@ def init_agent():
             state["response"] = ai_msg.content
 
         return state
-   
-     
+
     workflow = StateGraph(AgentState)
     workflow.add_node("guardrail_check", guardrail_node)
     workflow.add_node("agent_execution", llm_agent_node)
@@ -136,7 +136,7 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-user_input = st.chat_input("اسأل المساعد (مثال: احسب 15 * 40 أو احسب RSI للأسعار)...")
+user_input = st.chat_input("اسأل المساعد...")
 
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
@@ -152,13 +152,12 @@ if user_input:
                 "error_msg": ""
             }
             
-            # تنفيذ مباشر وسلس بدون أي asyncio أو مشاكل مع AnyIO
             output = app_graph.invoke(initial_state)
             
             if output["guardrail_passed"]:
                 st.caption("🛡️ NeMo Guardrails: تم اجتياز الفحص الأمني.")
             else:
-                st.caption("🚨 NeMo Guardrails: تم الحظر أو حدث خطأ.")
+                st.caption("🚨 NeMo Guardrails: تم الحظر بواسطة القواعد.")
 
             bot_reply = output["response"]
             st.markdown(bot_reply)
