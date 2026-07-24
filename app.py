@@ -1,7 +1,7 @@
 import os
 import sys
-import traceback
 import asyncio
+import nest_asyncio
 import streamlit as st
 from typing import TypedDict
 from langchain_core.tools import tool
@@ -10,17 +10,19 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from nemoguardrails import RailsConfig, LLMRails
 from langgraph.graph import StateGraph, END
 
-# 1. إعداد المفاتيح في بيئة النظام قبل أي شيء
+# حل مشكلة Event Loop داخل Streamlit
+nest_asyncio.apply()
+
+# 1. إعداد المفاتيح في بيئة النظام (مهم لـ NeMo Guardrails و Groq)
 if "GROQ_API_KEY" in st.secrets:
     os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
+    os.environ["OPENAI_API_KEY"] = st.secrets["GROQ_API_KEY"]  # مطلوب لـ NeMo OpenAI Engine
 
 st.set_page_config(page_title="Secure AI Agent Platform", page_icon="🤖", layout="centered")
-
 st.title("Secure AI Agent Platform From YASOR LABS")
- 
 
 # ---------------------------------------------------------
-# 2. تعريف الأدوات في النطاق العام (Global Scope)
+# 2. تعريف الأدوات
 # ---------------------------------------------------------
 @tool
 def multiply_numbers(a: float, b: float) -> float:
@@ -61,14 +63,11 @@ def init_agent():
         user_input = state["input_text"]
         
         if not guardrails:
-            # لو NeMo محملش بنجاح، نتخطى الفحص ونلغي الحظر
             state["guardrail_passed"] = True
             return state
 
         try:
-            # تشغيل فحص NeMo
             res = await guardrails.generate_async(prompt=user_input)
-            
             res_text = res.get("content", "") if isinstance(res, dict) else str(res)
 
             if any(keyword in res_text for keyword in ["🚨", "⚠️", "تنبيه أمني", "عذراً"]):
@@ -78,7 +77,6 @@ def init_agent():
                 state["guardrail_passed"] = True
 
         except Exception as e:
-            # طباعة الخطأ بالتفصيل لتسهيل المعرفة
             state["guardrail_passed"] = False
             state["response"] = f"🚨 حدث خطأ أثناء فحص NeMo Guardrails:\n{str(e)}"
             state["error_msg"] = str(e)
@@ -89,10 +87,11 @@ def init_agent():
         if not state["guardrail_passed"]:
             return state
         
+        # توحيد التعليمات لتكون متوافقة مع قواعد NeMo
         messages = [
-            SystemMessage(content="""أنت مساعد ذكي ومفيد ومتعدد المهام.
-- إذا كان سؤال المستخدم يتطلب أداة مجهزة (مثل ضرب الأرقام أو حساب مؤشر RSI)، قم باستدعاء الأداة المناسبة.
-- إذا كان السؤال عاماً أو استفساراً لا يحتاج إلى أدوات، أجب عليه مباشرة بدقة ووضوح من معرفتك العامة بدون استدعاء أي أداة."""),
+            SystemMessage(content="""أنت مساعد ذكي مخصص فقط للحسابات الرياضية والتحليل الفني للأسهم.
+- إذا كان سؤال المستخدم يتطلب أداة (مثل ضرب الأرقام أو حساب RSI)، استدعِ الأداة المناسبة فوراً.
+- أجب فقط في نطاق الرياضيات والمالية بدون الخروج عن هذا التخصص."""),
             HumanMessage(content=state["input_text"])
         ]
         
@@ -105,14 +104,17 @@ def init_agent():
             
             if tool_name == "multiply_numbers":
                 result = multiply_numbers.invoke(tool_args)
+                
                 state["response"] = f"النتيجة الحسابية الدقيقة: {result}"
             elif tool_name == "calculate_rsi":
                 result = calculate_rsi.invoke(tool_args)
                 state["response"] = f"نتيجة التحليل: {result}"
             else:
                 state["response"] = ai_msg.content
+        else:
+            state["response"] = ai_msg.content
 
-            return state
+        return state # تم تصحيح الإزاحة هنا
 
     workflow = StateGraph(AgentState)
     workflow.add_node("guardrail_check", guardrail_node)
@@ -125,9 +127,7 @@ def init_agent():
 
 app_graph = init_agent()
 
-# ---------------------------------------------------------
-# 4. واجهة المستخدم وإدارة الجلسة
-# ---------------------------------------------------------
+ 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -135,7 +135,8 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-user_input = st.chat_input("اسأل المساعد (مثال: احسب 15 * 40 أو ما هي عاصمة فرنسا)...")
+# تحديث أمثلة الإدخال لتتناسب مع تخصص البوت
+user_input = st.chat_input("اسأل المساعد (مثال: احسب 15 * 40 أو احسب RSI للأسعار)...")
 
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
@@ -151,14 +152,8 @@ if user_input:
                 "error_msg": ""
             }
             
-            # تشغيل الـ Async بأمان
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                
-            output = loop.run_until_complete(app_graph.ainvoke(initial_state))
+            # تشغيل الـ Async بشكل آمن
+            output = asyncio.run(app_graph.ainvoke(initial_state))
             
             if output["guardrail_passed"]:
                 st.caption("🛡️ NeMo Guardrails: تم اجتياز الفحص الأمني.")
