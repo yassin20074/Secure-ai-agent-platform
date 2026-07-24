@@ -68,7 +68,7 @@ def init_agent():
             res_text = str(res)
 
         # التحقق إذا كانت الإجابة تحتوي على رسائل الحظر المعرفة في Colang
-        if any(keyword in res_text for keyword in ["🚨", "تنبيه أمني", "عذراً"]):
+        if any(keyword in res_text for keyword in ["🚨", "⚠️", "تنبيه أمني", "عذراً"]):
             state["guardrail_passed"] = False
             state["response"] = res_text
         else:
@@ -114,7 +114,9 @@ def init_agent():
 
 app_graph = init_agent()
 
- 
+# ---------------------------------------------------------
+# 4. واجهة المستخدم وإدارة الجلسة
+# ---------------------------------------------------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
