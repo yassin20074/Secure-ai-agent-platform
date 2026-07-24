@@ -28,7 +28,7 @@ def init_agent():
 
     @tool
     def calculate_rsi(prices: str) -> str:
-        " 
+        
         return "مؤشر RSI الحالي هو 28.5 (منطقة تشبع بيعي - فرصة شراء)."
 
     tools = [multiply_numbers, calculate_rsi]
