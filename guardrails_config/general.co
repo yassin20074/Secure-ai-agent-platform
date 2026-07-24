@@ -1,0 +1,28 @@
+ 
+define user express prompt injection
+  "ignore previous instructions"
+  "system prompt"
+  "امسح التعليمات"
+
+define flow check prompt injection
+  user express prompt injection
+  bot express security alert
+  stop
+
+define bot express security alert
+  "🚨 تنبيه أمني: محاولة غير مصرح بها لتجاوز تعليمات النظام."
+
+ 
+define user express off topic
+  "من هو رئيس"
+  "اكتب لي شعر"
+  "ما هي عاصمة"
+  "طريقة عمل البيتزا"
+
+define flow check off topic
+  user express off topic
+  bot express off topic message
+  stop
+
+define bot express off topic message
+  "⚠️ عذراً، أنا نظام مخصص فقط للحسابات الرياضية والتحليل المالي ولا أجيب عن الأسئلة العامة."
