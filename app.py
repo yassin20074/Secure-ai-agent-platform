@@ -14,8 +14,7 @@ if "GROQ_API_KEY" in st.secrets:
 
 st.set_page_config(page_title="Secure AI Agent Platform", page_icon="🤖", layout="centered")
 
-st.title("🤖 Secure AI Agent Platform")
-st.caption("Powered by LangGraph, Groq (Llama 3.3), NeMo Guardrails & Streamlit")
+st.title("Secure AI Agent Platform From YASOR LABS")
 
 # ---------------------------------------------------------
 # 2. تعريف الأدوات في النطاق العام (Global Scope)
