@@ -16,7 +16,7 @@ if "GROQ_API_KEY" in st.secrets:
 st.set_page_config(page_title="Secure AI Agent Platform", page_icon="🤖", layout="centered")
 
 st.title("Secure AI Agent Platform From YASOR LABS")
-st.caption("Powered by LangGraph, Groq (Llama 3.3), NeMo Guardrails & Streamlit")
+st.caption("Powered by LangGraph")
 
  
 @tool
@@ -34,7 +34,7 @@ def calculate_rsi(prices: str) -> str:
 def init_agent():
     tools = [multiply_numbers, calculate_rsi]
 
-    # NeMo Guardrails Setup
+   
     config = RailsConfig.from_path("./guardrails_config")
     guardrails = LLMRails(config)
 
@@ -46,10 +46,12 @@ def init_agent():
         input_text: str
         guardrail_passed: bool
         response: str
-
+   
     async def guardrail_node(state: AgentState) -> AgentState:
         user_input = state["input_text"]
+          
         res = await guardrails.generate_async(prompt=user_input)
+        
         if " تنبيه أمني" in res or " عذراً" in res:
             state["guardrail_passed"] = False
             state["response"] = res
@@ -57,6 +59,7 @@ def init_agent():
             state["guardrail_passed"] = True
         return state
 
+     
     async def llm_agent_node(state: AgentState) -> AgentState:
         if not state["guardrail_passed"]:
             return state
@@ -86,9 +89,11 @@ def init_agent():
 
         return state
 
+    
     workflow = StateGraph(AgentState)
     workflow.add_node("guardrail_check", guardrail_node)
     workflow.add_node("agent_execution", llm_agent_node)
+    
     workflow.set_entry_point("guardrail_check")
     workflow.add_edge("guardrail_check", "agent_execution")
     workflow.add_edge("agent_execution", END)
@@ -96,11 +101,10 @@ def init_agent():
     return workflow.compile()
 
 app_graph = init_agent()
-
  
 if "messages" not in st.session_state:
- 
     st.session_state.messages = []
+
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
@@ -113,7 +117,7 @@ if user_input:
         st.markdown(user_input)
 
     with st.chat_message("assistant"):
-        with st.spinner("جاري التفكير والأمان..."):
+        with st.spinner("جاري فحص الأمان بواسطة NeMo Guardrails والمعالجة..."):
             initial_state = {"input_text": user_input, "guardrail_passed": False, "response": ""}
             
             try:
@@ -123,7 +127,13 @@ if user_input:
                 asyncio.set_event_loop(loop)
 
             output = loop.run_until_complete(app_graph.ainvoke(initial_state))
-            bot_reply = output["response"]
+            
+            # توضيح حالة NeMo Guardrails في الواجهة
+            if output["guardrail_passed"]:
+                st.caption(" NeMo Guardrails: تم اجتياز الفحص الأمني بنجاح.")
+            else:
+                st.caption(" NeMo Guardrails: تم حظر المدخلات لاعتبارات أمنية.")
 
+            bot_reply = output["response"]
             st.markdown(bot_reply)
-            st.session_state.messages.append({"role": "assistant", "content": bot_reply})     
+            st.session_state.messages.append({"role": "assistant", "content": bot_reply})
