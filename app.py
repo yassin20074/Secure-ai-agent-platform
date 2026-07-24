@@ -34,6 +34,17 @@ def calculate_rsi(prices: str) -> str:
     """تستخدم لحساب مؤشر القوة النسبية RSI لأسعار السهم."""
     return "مؤشر RSI الحالي هو 28.5 (منطقة تشبع بيعي - فرصة شراء)."
 
+def run_async(coro):
+    """تضمن وجود Event Loop نشط وتنفذ الكود اللا تزاكني بأمان."""
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_closed():
+            raise RuntimeError
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
+    return loop.run_until_complete(coro)
 # ---------------------------------------------------------
 # 3. إعداد الـ Agent والـ Guardrails
 # ---------------------------------------------------------
@@ -52,7 +63,7 @@ def init_agent():
         guardrails = LLMRails(config)
     except Exception as e:
         st.error(f"❌ فشل تحميل NeMo Guardrails: {str(e)}")
-
+  
     class AgentState(TypedDict):
         input_text: str
         guardrail_passed: bool
@@ -152,8 +163,8 @@ if user_input:
                 "error_msg": ""
             }
             
-            # تشغيل الـ Async بشكل آمن
-            output = asyncio.run(app_graph.ainvoke(initial_state))
+            # ✅ التشغيل الآمن باستخدام الدالة المخصصة
+            output = run_async(app_graph.ainvoke(initial_state))
             
             if output["guardrail_passed"]:
                 st.caption("🛡️ NeMo Guardrails: تم اجتياز الفحص الأمني.")
