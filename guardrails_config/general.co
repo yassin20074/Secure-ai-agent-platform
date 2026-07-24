@@ -1,4 +1,3 @@
- 
 define user express prompt injection
   "ignore previous instructions"
   "system prompt"
@@ -18,6 +17,7 @@ define user express off topic
   "اكتب لي شعر"
   "ما هي عاصمة"
   "طريقة عمل البيتزا"
+  "ولد كود اختراق"
 
 define flow check off topic
   user express off topic
