@@ -1,5 +1,6 @@
 import os
 import asyncio
+import nest_asyncio
 import streamlit as st
 from typing import TypedDict
 from langchain_core.tools import tool
@@ -8,17 +9,22 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from nemoguardrails import RailsConfig, LLMRails
 from langgraph.graph import StateGraph, END
 
- 
+# حل مشاكل الـ Async Event Loop داخل Streamlit
+nest_asyncio.apply()
+
+# 1. قراءة الـ Secrets من إعدادات Streamlit
 if "GROQ_API_KEY" in st.secrets:
     os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
     os.environ["OPENAI_API_KEY"] = st.secrets["GROQ_API_KEY"]
 
 st.set_page_config(page_title="Secure AI Agent Platform", page_icon="🤖", layout="centered")
 
-st.title("Secure AI Agent Platform From YASOR LABS")
-st.caption("Powered by LangGraph")
+st.title("🤖 Secure AI Agent Platform")
+st.caption("Powered by LangGraph, Groq (Llama 3.3), NeMo Guardrails & Streamlit")
 
- 
+# ---------------------------------------------------------
+# 2. تعريف الأدوات في النطاق العام (Global Scope)
+# ---------------------------------------------------------
 @tool
 def multiply_numbers(a: float, b: float) -> float:
     """تستخدم لحساب حاصل ضرب رقمين بدقة 100%."""
@@ -29,12 +35,14 @@ def calculate_rsi(prices: str) -> str:
     """تستخدم لحساب مؤشر القوة النسبية RSI لأسعار السهم."""
     return "مؤشر RSI الحالي هو 28.5 (منطقة تشبع بيعي - فرصة شراء)."
 
- 
+# ---------------------------------------------------------
+# 3. إعداد NeMo Guardrails والـ Agent داخل الـ Cache
+# ---------------------------------------------------------
 @st.cache_resource
 def init_agent():
     tools = [multiply_numbers, calculate_rsi]
 
-   
+    # تحميل إعدادات NeMo Guardrails
     config = RailsConfig.from_path("./guardrails_config")
     guardrails = LLMRails(config)
 
@@ -46,20 +54,27 @@ def init_agent():
         input_text: str
         guardrail_passed: bool
         response: str
-   
+
     async def guardrail_node(state: AgentState) -> AgentState:
         user_input = state["input_text"]
-          
+        
+        # استدعاء NeMo Guardrails
         res = await guardrails.generate_async(prompt=user_input)
         
-        if " تنبيه أمني" in res or " عذراً" in res:
+        # استخراج النص سواء أرجعت الدالة Dict أو String
+        if isinstance(res, dict):
+            res_text = res.get("content", "")
+        else:
+            res_text = str(res)
+
+        # التحقق إذا كانت الإجابة تحتوي على رسائل الحظر المعرفة في Colang
+        if any(keyword in res_text for keyword in ["🚨", "تنبيه أمني", "عذراً"]):
             state["guardrail_passed"] = False
-            state["response"] = res
+            state["response"] = res_text
         else:
             state["guardrail_passed"] = True
         return state
 
-     
     async def llm_agent_node(state: AgentState) -> AgentState:
         if not state["guardrail_passed"]:
             return state
@@ -88,12 +103,9 @@ def init_agent():
             state["response"] = ai_msg.content
 
         return state
-
-    
-    workflow = StateGraph(AgentState)
+     workflow = StateGraph(AgentState)
     workflow.add_node("guardrail_check", guardrail_node)
     workflow.add_node("agent_execution", llm_agent_node)
-    
     workflow.set_entry_point("guardrail_check")
     workflow.add_edge("guardrail_check", "agent_execution")
     workflow.add_edge("agent_execution", END)
@@ -101,6 +113,7 @@ def init_agent():
     return workflow.compile()
 
 app_graph = init_agent()
+
  
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -109,7 +122,7 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-user_input = st.chat_input("What is your question?")
+user_input = st.chat_input("اسأل المساعد (مثال: احسب 15 * 40 أو ما هي عاصمة فرنسا)...")
 
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
@@ -117,22 +130,16 @@ if user_input:
         st.markdown(user_input)
 
     with st.chat_message("assistant"):
-        with st.spinner("جاري فحص الأمان بواسطة NeMo Guardrails والمعالجة..."):
+        with st.spinner("جاري فحص الأمان والتحليل..."):
             initial_state = {"input_text": user_input, "guardrail_passed": False, "response": ""}
             
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-
-            output = loop.run_until_complete(app_graph.ainvoke(initial_state))
+            # تنفيذ الـ Async Graph بأمان
+            output = asyncio.run(app_graph.ainvoke(initial_state))
             
-            # توضيح حالة NeMo Guardrails في الواجهة
             if output["guardrail_passed"]:
-                st.caption(" NeMo Guardrails: تم اجتياز الفحص الأمني بنجاح.")
+                st.caption("🛡️ NeMo Guardrails: تم اجتياز الفحص الأمني.")
             else:
-                st.caption(" NeMo Guardrails: تم حظر المدخلات لاعتبارات أمنية.")
+                st.caption("🚨 NeMo Guardrails: تم حظر الإدخال بناءً على قواعد الأمان.")
 
             bot_reply = output["response"]
             st.markdown(bot_reply)
