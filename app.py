@@ -8,7 +8,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from nemoguardrails import RailsConfig, LLMRails
 from langgraph.graph import StateGraph, END
 
-# 1. ضبط مفتاح Groq فقط (بدون تعيينه لـ OpenAI)
+ 
 if "GROQ_API_KEY" in st.secrets:
     os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
 
@@ -16,22 +16,18 @@ st.set_page_config(page_title="Secure AI Agent Platform", page_icon="🤖", layo
 
 st.title("Secure AI Agent Platform From YASOR LABS")
 
-# ---------------------------------------------------------
-# 2. تعريف الأدوات في النطاق العام (Global Scope)
-# ---------------------------------------------------------
+ 
 @tool
 def multiply_numbers(a: float, b: float) -> float:
-    """تستخدم لحساب حاصل ضرب رقمين بدقة 100%."""
+   
     return a * b
 
 @tool
 def calculate_rsi(prices: str) -> str:
-    """تستخدم لحساب مؤشر القوة النسبية RSI لأسعار السهم."""
+    
     return "مؤشر RSI الحالي هو 28.5 (منطقة تشبع بيعي - فرصة شراء)."
 
-# ---------------------------------------------------------
-# 3. إعداد الـ Agent والـ Guardrails داخل الـ Cache
-# ---------------------------------------------------------
+ 
 @st.cache_resource
 def init_agent():
     tools = [multiply_numbers, calculate_rsi]
@@ -53,7 +49,7 @@ def init_agent():
         user_input = state["input_text"]
         
         try:
-            # تشغيل فحص NeMo Guardrails
+         
             res = await guardrails.generate_async(prompt=user_input)
             
             if isinstance(res, dict):
@@ -62,13 +58,13 @@ def init_agent():
                 res_text = str(res)
 
             # فحص هل تم إرجاع رسالة حظر من قواعد Colang
-            if any(keyword in res_text for keyword in ["🚨", "⚠️", "تنبيه أمني", "عذراً"]):
+            if any(keyword in res_text for keyword in ["تنبيه أمني", "عذراً"]):
                 state["guardrail_passed"] = False
                 state["response"] = res_text
             else:
                 state["guardrail_passed"] = True
         except Exception as e:
-            # في حالة حدوث استثناء داخلي في NeMo يتم طباعته للتدقيق
+            
             state["guardrail_passed"] = False
             state["response"] = f"🚨 خطأ في نظام الأمان: {str(e)}"
             
@@ -113,7 +109,7 @@ def init_agent():
 
 app_graph = init_agent()
 
-# دالة آمنة لتشغيل Async داخل Streamlit
+ 
 def run_async_task(coro):
     try:
         loop = asyncio.get_event_loop()
@@ -128,9 +124,7 @@ def run_async_task(coro):
     else:
         return loop.run_until_complete(coro)
 
-# ---------------------------------------------------------
-# 4. واجهة المستخدم وإدارة الجلسة
-# ---------------------------------------------------------
+ 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -152,9 +146,9 @@ if user_input:
             output = run_async_task(app_graph.ainvoke(initial_state))
             
             if output["guardrail_passed"]:
-                st.caption("🛡️ NeMo Guardrails: تم اجتياز الفحص الأمني بنجاح.")
+                st.caption("NeMo Guardrails: تم اجتياز الفحص الأمني بنجاح.")
             else:
-                st.caption("🚨 NeMo Guardrails: تم حظر الإدخال بناءً على القواعد الأمنية.")
+                st.caption("NeMo Guardrails: تم حظر الإدخال بناءً على القواعد الأمنية.")
 
             bot_reply = output["response"]
             st.markdown(bot_reply)
