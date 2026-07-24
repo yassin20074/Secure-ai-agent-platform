@@ -8,7 +8,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from nemoguardrails import RailsConfig, LLMRails
 from langgraph.graph import StateGraph, END
 
-# 1. إعداد المفاتيح في بيئة النظام
+  
 if "GROQ_API_KEY" in st.secrets:
     os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
     os.environ["OPENAI_API_KEY"] = st.secrets["GROQ_API_KEY"]
@@ -16,9 +16,7 @@ if "GROQ_API_KEY" in st.secrets:
 st.set_page_config(page_title="Secure AI Agent Platform", page_icon="🤖", layout="centered")
 st.title("Secure AI Agent Platform From YASOR LABS")
 
-# ---------------------------------------------------------
-# 2. تعريف الأدوات
-# ---------------------------------------------------------
+ 
 @tool
 def multiply_numbers(a: float, b: float) -> float:
     """تستخدم لحساب حاصل ضرب رقمين بدقة 100%."""
@@ -29,9 +27,7 @@ def calculate_rsi(prices: str) -> str:
     """تستخدم لحساب مؤشر القوة النسبية RSI لأسعار السهم."""
     return "مؤشر RSI الحالي هو 28.5 (منطقة تشبع بيعي - فرصة شراء)."
 
-# ---------------------------------------------------------
-# 3. إعداد الـ Agent والـ Guardrails
-# ---------------------------------------------------------
+ 
 @st.cache_resource
 def init_agent():
     tools = [multiply_numbers, calculate_rsi]
@@ -56,7 +52,7 @@ def init_agent():
     def guardrail_node(state: AgentState) -> AgentState:
         user_input_lower = state["input_text"].lower()
         
-        # 1. فحص مباشر وسريع للكلمات المحظورة صراحة (تأمين إضافي 100%)
+          
         prompt_injection_keywords = ["ignore previous instructions", "system prompt", "امسح التعليمات"]
         blocked_topic_keywords = ["بيتزا", "طريقة عمل البيتزا"]
 
@@ -76,7 +72,7 @@ def init_agent():
             state["guardrail_passed"] = True
             return state
 
-        # 2. فحص NeMo Guardrails للسيناريوهات المعقدة
+     
         try:
             res = guardrails.generate(prompt=state["input_text"])
             res_text = res.get("content", "") if isinstance(res, dict) else str(res)
@@ -100,7 +96,7 @@ def init_agent():
         if not state["guardrail_passed"]:
             return state
         
-        # System Prompt يسمح بالرد العام واستخدام الأدوات عند الحاجة
+         
         messages = [
             SystemMessage(content="""أنت مساعد ذكي ومفيد ومتعدد المهام.
 
@@ -141,9 +137,7 @@ def init_agent():
 
 app_graph = init_agent()
 
-# ---------------------------------------------------------
-# 4. واجهة المستخدم
-# ---------------------------------------------------------
+ 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
