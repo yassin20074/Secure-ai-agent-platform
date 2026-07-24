@@ -79,20 +79,18 @@ def init_agent():
             state["error_msg"] = str(e)
             
         return state
-
     def llm_agent_node(state: AgentState) -> AgentState:
         if not state["guardrail_passed"]:
             return state
         
-        # تعليمات صارمة تمنع الـ LLM من استخدام الأدوات بغير محلها
+        # System Prompt مرن للأسئلة العامة وذكي لاستخدام الأدوات
         messages = [
-            SystemMessage(content="""أنت مساعد ذكي متخصص حصرياً في الرياضيات والتحليل الفني للأسهم.
+            SystemMessage(content="""أنت مساعد ذكي ومفيد ومتعدد المهام.
 
-قواعد صارمة جداً:
-1. لا تستدعِ الأدوات (multiply_numbers, calculate_rsi) إلا إذا كان سؤال المستخدم يحتوي بوضوح على أرقام للحساب أو طلب تحليل سهم.
-2. يمنع منعاً باتاً استدعاء أداة الضرب (multiply_numbers) بأرقام افتراضية (مثل 0) لأسئلة لا تحتوي أرقاماً.
-3. إذا وصلك سؤال عام أو رياضي (مثل أسئلة كرة القدم أو الأخبار)، لا تستدعِ أي أداة إطلاقاً، وأجب فوراً بالرسالة التالية:
-"⚠️ عذراً، أنا نظام مخصص فقط للحسابات الرياضية والتحليل المالي." """),
+القواعد:
+1. إذا كان سؤال المستخدم يتطلب حسابات رياضية (مثل ضرب أرقام) أو تحليل أسهم (مثل حساب RSI)، استخدم الأداة المخصصة المتاحة فوراً.
+2. إذا كان السؤال عاماً (ثقافي، رياضي، تاريخي، معلومات عامة... إلخ)، أجب عليه مباشرة بدقة ووضوح من معرفتك العامة بدون استدعاء أي أداة.
+3. يمنع استدعاء أدوات الحساب ببيانات افتراضية إذا لم يطلب المستخدم حساباً صريحاً."""),
             HumanMessage(content=state["input_text"])
         ]
         
@@ -115,7 +113,8 @@ def init_agent():
             state["response"] = ai_msg.content
 
         return state
-
+   
+     
     workflow = StateGraph(AgentState)
     workflow.add_node("guardrail_check", guardrail_node)
     workflow.add_node("agent_execution", llm_agent_node)
