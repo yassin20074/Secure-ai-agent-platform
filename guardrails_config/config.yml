@@ -8,10 +8,5 @@ models:
 rails:
   input:
     flows:
-      - check off topic
       - check prompt injection
-
-instructions:
-  - type: general
-    content: |
-      أنت مساعد ذكي مخصص فقط للحسابات والرياضيات والتحليل الفني للأسهم. لا تجب عن أي موضوع خارجي.
+      - check blocked topic
